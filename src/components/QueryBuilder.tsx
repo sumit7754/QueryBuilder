@@ -24,7 +24,7 @@ const QueryBuilder: React.FC<QueryBuilderProps> = ({ onClose }) => {
     const newGroup: RuleGroup = {
       id: uuidv4(),
       children: [],
-      conjunction: 'AND', // Default conjunction for new groups
+      conjunction: 'AND',
       not: false,
       type: 'rule_group',
     };
@@ -42,19 +42,22 @@ const QueryBuilder: React.FC<QueryBuilderProps> = ({ onClose }) => {
     }
   };
 
-  const humanizeQuery = (groups: (RuleGroup | Rule)[]): string => {
+  const humanizeQuery = (groups: (RuleGroup | Rule)[], parentId: RuleGroup | null): string => {
     return groups
-      .map((group) => {
+      .map((group, index, array) => {
         if (group.type === 'rule') {
-          const valueStr = group.value?.length ? `'${group.value.join(', ')}'` : 'N/A';
+          const valueStr = group.value && group.value.length ? `'${group.value.join(', ')}'` : '';
           return `${group.field} ${group.condition} ${valueStr}`;
+        } else if (group.type === 'rule_group') {
+          const childrenStr = humanizeQuery(group.children, group);
+          const negationStr = group.not ? 'NOT ' : '';
+          const conjunctionStr = group.conjunction && index < array.length - 1 ? ` ${group.conjunction} ` : '';
+          return `${negationStr}(${childrenStr})${conjunctionStr}`;
         }
-
-        const childrenStr = group.children.map((child) => humanizeQuery([child])).join(` ${group.conjunction} `);
-        const negationStr = group.not ? 'NOT ' : '';
-        return `(${negationStr}${childrenStr})`;
+        return '';
       })
-      .join(' ');
+      .filter(Boolean)
+      .join(parentId ? ` ${parentId.conjunction} ` : '');
   };
 
   const showResult = () => {
@@ -69,7 +72,7 @@ const QueryBuilder: React.FC<QueryBuilderProps> = ({ onClose }) => {
     if (update) {
       const cleanedGroups = removeFields(groups);
       setFormattedQuery(JSON.stringify(cleanedGroups, null, 2));
-      setResultString(humanizeQuery(groups));
+      setResultString(humanizeQuery(groups, null));
       dispatch(offUpdate());
     }
   }, [update, dispatch, groups]);
